@@ -1,0 +1,75 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.3'
+}
+
+group = 'com.monitor'
+version = '1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+ext {
+    flinkVersion = '1.18.1'
+    kafkaConnectorVersion = '3.1.0-1.18'
+    influxdbClientVersion = '7.1.0'
+    jacksonVersion = '2.15.2'
+    mainClassName = 'com.monitor.LatencyJob'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Flink core - included for local execution.
+    // For cluster deployment, change these back to compileOnly (cluster provides them).
+    implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
+    implementation "org.apache.flink:flink-clients:${flinkVersion}"
+
+    // Flink Kafka connector and its base runtime
+    implementation "org.apache.flink:flink-connector-kafka:${kafkaConnectorVersion}"
+    implementation "org.apache.flink:flink-connector-base:${flinkVersion}"
+
+    // InfluxDB client
+    implementation "com.influxdb:influxdb-client-java:${influxdbClientVersion}"
+
+    // Jackson for JSON deserialization
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+
+    // Logging
+    implementation 'org.apache.logging.log4j:log4j-api:2.17.2'
+    implementation 'org.apache.logging.log4j:log4j-core:2.17.2'
+    implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.2'
+}
+
+mainClassName = 'com.monitor.LatencyJob'
+
+jar {
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+}
+
+shadowJar {
+    archiveBaseName.set('flink-latency-job')
+    archiveClassifier.set('')
+    archiveVersion.set(version)
+
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+
+    // Merge META-INF service files to avoid conflicts
+    mergeServiceFiles()
+
+    // Exclude signature files that cause SecurityExceptions
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+}
+
+// Make 'build' depend on shadowJar
+assemble.dependsOn shadowJar

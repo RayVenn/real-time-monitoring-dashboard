@@ -1,0 +1,19 @@
+# Build output
+build/
+.gradle/
+bin/
+
+# Logs
+*.log
+flink-job.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Gradle wrapper (keep gradlew scripts, ignore jar)
+gradle/wrapper/gradle-wrapper.jar
