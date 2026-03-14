@@ -1,0 +1,25 @@
+plugins {
+    id 'application'
+}
+
+ext {
+    awsSdkVersion = '2.25.0'
+    kafkaVersion  = '3.7.0'
+}
+
+application {
+    mainClass = 'com.monitor.cloudwatch.CloudWatchExporter'
+}
+
+dependencies {
+    // Plain Kafka consumer (no Flink)
+    implementation "org.apache.kafka:kafka-clients:${kafkaVersion}"
+
+    // AWS SDK v2 CloudWatch
+    implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
+    implementation 'software.amazon.awssdk:cloudwatch'
+
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'org.slf4j:slf4j-simple:2.0.9'
+}

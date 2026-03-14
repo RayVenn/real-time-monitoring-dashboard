@@ -22,11 +22,9 @@ Kafka (net-latency)
 ## Workspace Structure
 
 ```
-flink-latency-job/
+flink-latency-job/                     # submodule — run from repo root with ./gradlew
 ├── CLAUDE.md                          # This file
-├── build.gradle                       # Gradle build (Shadow jar, Flink 1.18.1)
-├── settings.gradle
-├── docker-compose.yml                 # InfluxDB 2.7 + Grafana
+├── build.gradle                       # Module build (Shadow jar, Flink 1.18.1)
 └── src/main/java/com/monitor/
     ├── LatencyJob.java                # Main — pipeline entry point
     ├── NetworkEvent.java              # Kafka JSON POJO
@@ -119,8 +117,9 @@ docker compose up -d
 ### Build fat jar
 
 ```bash
-./gradlew shadowJar
-# → build/libs/flink-latency-job-1.0-SNAPSHOT.jar
+# from repo root
+./gradlew :flink-latency-job:shadowJar
+# → flink-latency-job/build/libs/flink-latency-job-1.0-SNAPSHOT.jar
 ```
 
 ### Run locally
@@ -131,7 +130,7 @@ INFLUXDB_URL=http://localhost:8086 \
 INFLUXDB_TOKEN=my-token \
 INFLUXDB_ORG=my-org \
 INFLUXDB_BUCKET=network_metrics \
-nohup java -jar build/libs/flink-latency-job-1.0-SNAPSHOT.jar > flink-job.log 2>&1 &
+./gradlew :flink-latency-job:run
 ```
 
 ### Environment Variables

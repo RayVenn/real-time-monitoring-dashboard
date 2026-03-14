@@ -2,6 +2,34 @@ version: "3.8"
 
 services:
   # -------------------------------------------------------------------------
+  # Kafka — message broker. Receives events from the Rust pcap agent and
+  # delivers them to flink-latency-job and cloudwatch-exporter.
+  # -------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode (no ZooKeeper). Expose on localhost so local Java processes
+      # can connect at localhost:9092.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # -------------------------------------------------------------------------
   # InfluxDB 2.7 — time-series database that receives aggregated RTT metrics
   # from the Flink job.
   # -------------------------------------------------------------------------
@@ -55,3 +83,4 @@ services:
 volumes:
   influxdb-data:
   grafana-data:
+  kafka-data:

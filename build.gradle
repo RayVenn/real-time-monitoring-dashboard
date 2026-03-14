@@ -1,0 +1,21 @@
+// Shared configuration for all subprojects.
+subprojects {
+    apply plugin: 'java'
+
+    group   = 'com.monitor'
+    version = '1.0-SNAPSHOT'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        // Jackson shared by all modules for JSON (de)serialization.
+        implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    }
+}

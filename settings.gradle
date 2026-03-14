@@ -1,0 +1,4 @@
+rootProject.name = 'real-time-monitoring-dashboard'
+
+include 'flink-latency-job'
+include 'cloudwatch-exporter'
