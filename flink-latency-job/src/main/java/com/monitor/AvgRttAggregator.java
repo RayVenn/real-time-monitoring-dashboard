@@ -34,7 +34,7 @@ public class AvgRttAggregator implements AggregateFunction<NetworkEvent, long[],
      */
     @Override
     public long[] add(NetworkEvent event, long[] accumulator) {
-        accumulator[0] += event.getRtt_us(); // sum_rtt_us
+        accumulator[0] += event.getRttUs(); // sum_rtt_us
         accumulator[1] += 1L;               // count
         return accumulator;
     }

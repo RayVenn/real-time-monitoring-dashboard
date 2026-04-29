@@ -1,7 +1,16 @@
 # Build output
 build/
 .gradle/
-bin/
+*.class
+
+# IDE Java output dirs (Eclipse, VS Code Java extension)
+**/bin/
+!infra/bin/
+
+# CDK
+node_modules/
+infra/cdk.out/
+infra/dist/
 
 # Logs
 *.log

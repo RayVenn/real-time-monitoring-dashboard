@@ -2,22 +2,28 @@
 
 ## Project Overview
 
-Multi-module Gradle project containing the downstream consumers of the Rust pcap agent's Kafka topics.
+Multi-module Gradle project containing the downstream consumers of the Go pcap agent's MSK topics.
 
-Part of the `real-time-monitoring` workspace alongside the [Rust pcap agent](../real-time-monitoring-agent).
+Part of the `real-time-monitoring` workspace alongside the [Go agent](../real-time-monitoring-agent).
 
 ---
 
 ## Architecture
 
 ```
-Rust pcap agent
-  → Kafka
+Go pcap agent (monitor-go)
+  → MSK (Amazon Managed Kafka)
       ├── net-latency     (RTT events)
       └── net-retransmit  (retransmission events)
             │
-            ├── flink-latency-job     → InfluxDB → Grafana
-            └── cloudwatch-exporter   → AWS CloudWatch
+            ├── Amazon Managed Flink (flink-latency-job)
+            │     → Lambda (rtt-to-cloudwatch)
+            │       → CloudWatch  Network/Latency / AvgRttUs
+            │
+            └── cloudwatch-exporter (Java)
+                  → CloudWatch  Network Latency / LatencyUs + RetransmitCount
+                        │
+                        └── CloudWatch Dashboard  +  Amazon Managed Grafana
 ```
 
 ---
@@ -31,9 +37,12 @@ real-time-monitoring-dashboard/
 ├── settings.gradle                  # Root: includes both submodules
 ├── build.gradle                     # Shared: java 11, mavenCentral, jackson
 ├── gradlew / gradle/                # Shared Gradle wrapper (9.3.1)
-├── docker-compose.yml               # InfluxDB 2.7 + Grafana
+├── docker-compose.yml               # InfluxDB 2.7 + Grafana (local dev only)
 │
-├── flink-latency-job/               # Flink streaming job
+├── lambda/                          # Python Lambda: Flink → CloudWatch
+│   └── handler.py                   # Receives LatencyMetric JSON, calls PutMetricData
+│
+├── flink-latency-job/               # Flink streaming job (Managed Flink in prod)
 │   ├── build.gradle
 │   └── src/main/java/com/monitor/
 │       ├── LatencyJob.java          # Pipeline entry point
@@ -41,14 +50,22 @@ real-time-monitoring-dashboard/
 │       ├── AvgRttAggregator.java    # Incremental avg RTT aggregation
 │       ├── WindowResultFunction.java
 │       ├── LatencyMetric.java
-│       └── InfluxDBSink.java
+│       └── InfluxDBSink.java        # Local dev sink (replace with LambdaSink for AWS)
 │
-└── cloudwatch-exporter/             # Plain Kafka consumer → CloudWatch
-    ├── build.gradle
-    └── src/main/java/com/monitor/cloudwatch/
-        ├── CloudWatchExporter.java  # Main — poll loop + PutMetricData
-        ├── NetworkEvent.java        # Kafka JSON POJO (net-latency)
-        └── RetransmitEvent.java     # Kafka JSON POJO (net-retransmit)
+├── cloudwatch-exporter/             # Plain Kafka consumer → CloudWatch raw metrics
+│   ├── build.gradle
+│   └── src/main/java/com/monitor/cloudwatch/
+│       ├── CloudWatchExporter.java  # Main — poll loop + PutMetricData
+│       ├── NetworkEvent.java        # Kafka JSON POJO (net-latency)
+│       └── RetransmitEvent.java     # Kafka JSON POJO (net-retransmit)
+│
+└── infra/                           # CDK TypeScript — Flink + metrics stacks
+    ├── cdk.json
+    ├── package.json
+    ├── tsconfig.json
+    ├── bin/infra.ts                 # App entry point → RtmFlinkStack + RtmMetricsStack
+    ├── lib/flink-stack.ts           # Managed Flink + Lambda + CloudWatch logs
+    └── lib/metrics-stack.ts         # CloudWatch dashboard + Amazon Managed Grafana
 ```
 
 ---
@@ -114,26 +131,31 @@ CloudWatch handles all aggregation (p50/p90/p99/avg/min/max) natively.
 
 ```bash
 # Java 11+
-# Docker (for InfluxDB + Grafana)
-# Kafka running on localhost:9092
-# AWS credentials (~/.aws/credentials or env vars) — for cloudwatch-exporter
+# AWS credentials (~/.aws/credentials or env vars)
+# agent-infra RtmMskStack must be deployed first (provides MSK broker endpoints)
 ```
 
-### Build all modules
+### Deploy AWS infra (Flink + metrics)
 
 ```bash
-./gradlew build
+# Build the Flink JAR first
+./gradlew :flink-latency-job:shadowJar
+
+cd infra
+npm install
+npx cdk deploy --all   # deploys RtmFlinkStack then RtmMetricsStack
 ```
 
-### Start infrastructure (InfluxDB + Grafana)
+Stacks deploy in order. After deploy:
+- Start the Flink app: `aws kinesisanalyticsv2 start-application --application-name network-latency-job`
+- Open the `GrafanaWorkspaceUrl` output and assign users in the AWS console
+
+### Local dev (docker-compose)
 
 ```bash
-docker compose up -d
-```
+# Java 11+ and Docker required
+docker compose up -d   # starts InfluxDB + Grafana on localhost
 
-### Run flink-latency-job
-
-```bash
 KAFKA_BROKERS=localhost:9092 \
 INFLUXDB_URL=http://localhost:8086 \
 INFLUXDB_TOKEN=my-token \
@@ -142,10 +164,11 @@ INFLUXDB_BUCKET=network_metrics \
 ./gradlew :flink-latency-job:run
 ```
 
-### Run cloudwatch-exporter
+### Run cloudwatch-exporter (against MSK)
 
 ```bash
-KAFKA_BROKERS=localhost:9092 \
+# Use the BrokersIamPublic output from agent-infra cdk deploy
+KAFKA_BROKERS=<MSK_SASL_IAM_PUBLIC_ENDPOINT> \
 AWS_REGION=us-east-1 \
 ./gradlew :cloudwatch-exporter:run
 ```
